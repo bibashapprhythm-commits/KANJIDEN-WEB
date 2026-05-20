@@ -1,0 +1,44 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0a0d14;
+  --bg2:       #0f1320;
+  --bg3:       #161b2e;
+  --border:    #1e2640;
+  --border2:   #2a3354;
+  --text:      #e8eaf0;
+  --text2:     #8892b0;
+  --text3:     #4a5580;
+  --red:       #e05c6a;
+  --red-dim:   rgba(224,92,106,0.12);
+  --gold:      #d4a843;
+  --gold-dim:  rgba(212,168,67,0.12);
+  --blue:      #5b8dee;
+  --blue-dim:  rgba(91,141,238,0.12);
+  --green:     #4ecb8d;
+  --green-dim: rgba(78,203,141,0.12);
+  --purple:    #9b72ef;
+  --radius:    12px;
+  --radius-lg: 20px;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+/* Japanese text */
+.jp { font-family: 'Shippori Mincho', serif; }
+
+button { cursor: pointer; font-family: inherit; border: none; outline: none; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
