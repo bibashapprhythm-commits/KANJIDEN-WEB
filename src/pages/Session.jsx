@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from '../lib/supabase.js'
 import { mcp } from '../lib/mcp.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -322,29 +321,20 @@ export default function Session({ sessionId, onBack }) {
   }, [sessionId])
 
   
-  async function loadSession() {
-    setPhase(PHASES.LOADING)
-    try {
-      let data
-      if (sessionId) {
-        const res = await supabase.from('sessions').select('*').eq('id', sessionId).single()
-        data = res.data
-      } else {
-        const res = await supabase.from('sessions').select('*')
-          .eq('status', 'pending').order('created_at', { ascending: false }).limit(1).single()
-        data = res.data
-      }
-      if (!data) { onBack(); return }
-      setSession(data)
-      setItems(data.items ?? [])
-      setPhase(PHASES.READING)
-
-      // Mark as reading
-      await supabase.from('sessions').update({ status: 'reading' }).eq('id', data.id)
-    } catch {
-      onBack()
-    }
+async function loadSession() {
+  setPhase(PHASES.LOADING)
+  try {
+    const data = sessionId
+      ? await mcp.getSession(sessionId)
+      : await mcp.getPendingSession()
+    if (!data) { onBack(); return }
+    setSession(data)
+    setItems(data.items ?? [])
+    setPhase(PHASES.READING)
+  } catch {
+    onBack()
   }
+}
 
   function handleAnswer(result) {
     const newAnswers = [...answers, result]

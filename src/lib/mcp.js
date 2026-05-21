@@ -11,6 +11,7 @@ async function callTool(toolName, args = {}) {
   return res.json()
 }
 
+
 export const mcp = {
   createSession:     (args) => callTool('create_session',      args),
   processQuizAnswer: (args) => callTool('process_quiz_answer', args),
@@ -19,4 +20,5 @@ export const mcp = {
   getWeakWords:      (args) => callTool('get_weak_words',      args ?? {}),
   getDueToday:       (args) => callTool('get_due_today',       args ?? {}),
   getPendingSession: ()     => callTool('get_pending_session', {}),
+  getSession: (sessionId) => callTool('get_session', { session_id: sessionId }),
 }
