@@ -340,7 +340,6 @@ export default function Session({ sessionId, onBack }) {
       setPhase(PHASES.READING)
 
       // Mark as reading
-      await supabase.from('sessions').update({ status: 'reading' }).eq('id', data.id)
     } catch {
       onBack()
     }
