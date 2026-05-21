@@ -320,21 +320,20 @@ export default function Session({ sessionId, onBack }) {
     loadSession()
   }, [sessionId])
 
-  
-async function loadSession() {
-  setPhase(PHASES.LOADING)
-  try {
-    const data = sessionId
-      ? await mcp.getSession(sessionId)
-      : await mcp.getPendingSession()
-    if (!data) { onBack(); return }
-    setSession(data)
-    setItems(data.items ?? [])
-    setPhase(PHASES.READING)
-  } catch {
-    onBack()
+  async function loadSession() {
+    setPhase(PHASES.LOADING)
+    try {
+      const data = sessionId
+        ? await mcp.getSession(sessionId)
+        : await mcp.getPendingSession()
+      if (!data) { onBack(); return }
+      setSession(data)
+      setItems(data.items ?? [])
+      setPhase(PHASES.READING)
+    } catch {
+      onBack()
+    }
   }
-}
 
   function handleAnswer(result) {
     const newAnswers = [...answers, result]
