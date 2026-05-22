@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase.js'
 import { mcp } from '../lib/mcp.js'
 
 const MASTERY_LABELS = ['🆕','📖','🔍','💡','⭐','🎌']
@@ -22,18 +21,9 @@ export default function Home({ onStartSession }) {
       const progress = await mcp.getProgress()
       setStats(progress)
 
-      console.log('SUPABASE URL:', import.meta.env.VITE_SUPABASE_URL)
-console.log('ANON KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY?.slice(0, 20))
-
       // Check for pending session
-      const { data } = await supabase
-        .from('sessions')
-        .select('id, date, params, items')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-      if (data) setPending(data)
+     const pending = await mcp.getPendingSession()
+     if (pending) setPending(pending)
     } catch {}
     setLoading(false)
   }
