@@ -32,18 +32,16 @@ function buildQuestion(item, allItems) {
   // Build question text and correct answer
   let question = '', correct = ''
   if (qType === 'meaning') {
-    question = item.item_type === 'kanji' ? `What does ${item.char ?? item.word} mean?` : `What does ${item.word} mean?`
+    question = `What does ${item.value} mean?`
     correct  = item.meaning
   } else if (qType === 'onyomi') {
-    question = `What is the on-yomi (音読み) of ${item.char}?`
+    question = `What is the on-yomi (音読み) of ${item.value}?`
     correct  = item.onyomi?.[0] ?? item.meaning
   } else if (qType === 'kunyomi') {
-    question = `What is the kun-yomi (訓読み) of ${item.char}?`
+    question = `What is the kun-yomi (訓読み) of ${item.value}?`
     correct  = item.kunyomi?.[0] ?? item.meaning
   } else if (qType === 'reading') {
-    question = item.item_type === 'kanji'
-      ? `How do you read ${item.char}?`
-      : `How do you read ${item.word}?`
+    question = `How do you read ${item.value}?`
     correct = item.item_type === 'kanji'
       ? (item.romaji_on?.[0] ?? item.romaji_kun?.[0] ?? item.meaning)
       : item.romaji
@@ -78,7 +76,7 @@ function buildQuestion(item, allItems) {
 
 function ReadingCard({ item, index, total, onNext, onPrev, onStart }) {
   const isKanji = item.item_type === 'kanji'
-  const display = isKanji ? item.char : item.word
+  const display = item.value
 
   return (
     <div style={s.phase}>
@@ -143,7 +141,7 @@ function QuizCard({ item, sessionId, allItems, onAnswer, cardNum, total }) {
   const startTime                 = useRef(Date.now())
   const { question, correct, options, qType } = buildQuestion(item, allItems)
   const isKanji = item.item_type === 'kanji'
-  const display = isKanji ? item.char : item.word
+  const display = item.value
 
   function handlePick(opt) {
     if (revealed) return
@@ -290,7 +288,7 @@ function Results({ answers, onStudyAgain, onHome }) {
           {wrong.map((a, i) => (
             <div key={i} style={s.wrongItem}>
               <span style={s.wrongKanji} className="jp">
-                {a.item.char ?? a.item.word}
+                {a.item.value}
               </span>
               <span style={s.wrongMeaning}>{a.item.meaning}</span>
               <span style={s.wrongRating}>{a.rating}</span>
