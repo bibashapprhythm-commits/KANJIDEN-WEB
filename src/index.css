@@ -42,3 +42,31 @@ html, body, #root {
 
 button { cursor: pointer; font-family: inherit; border: none; outline: none; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Session interactive states ────────────────────────────────────────────── */
+.opt-btn:hover:not(:disabled) {
+  border-color: var(--border2) !important;
+  background: rgba(255,255,255,0.03) !important;
+}
+
+.rate-btn:hover:not(:disabled) {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+.nav-btn-el:hover:not(:disabled) {
+  border-color: var(--border2) !important;
+  background: var(--bg3) !important;
+}
+
+/* ── Phase entrance animation ───────────────────────────────────────────────── */
+@keyframes phaseIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.phase-enter { animation: phaseIn 0.22s ease forwards; }
+
+/* ── Active states for touch ────────────────────────────────────────────────── */
+.opt-btn:active  { transform: scale(0.98); }
+.rate-btn:active { transform: scale(0.97) translateY(0); }
+.nav-btn-el:active { transform: scale(0.98); }

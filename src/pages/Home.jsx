@@ -4,7 +4,7 @@ import { mcp } from '../lib/mcp.js'
 const MASTERY_LABELS = ['🆕','📖','🔍','💡','⭐','🎌']
 const MASTERY_NAMES  = ['New','Learning','Familiar','Good','Strong','Mastered']
 
-export default function Home({ onStartSession }) {
+export default function Home({ onStartSession, onNav }) {
   const [stats, setStats]           = useState(null)
   const [pendingSession, setPending] = useState(null)
   const [loading, setLoading]       = useState(true)
@@ -58,6 +58,10 @@ export default function Home({ onStartSession }) {
               {due} due today
             </div>
           )}
+          <nav style={s.nav}>
+            <button style={s.navBtn} onClick={() => onNav?.('levels')}>Levels</button>
+            <button style={s.navBtn} onClick={() => onNav?.('browse')}>Browse</button>
+          </nav>
         </div>
       </header>
 
@@ -67,22 +71,32 @@ export default function Home({ onStartSession }) {
         ) : (
           <>
             {/* Pending session banner */}
-            {pendingSession && (
-              <div style={s.pendingBanner}>
-                <div style={s.pendingInfo}>
-                  <span style={s.pendingIcon}>📋</span>
-                  <div>
-                    <div style={s.pendingTitle}>Session ready</div>
-                    <div style={s.pendingMeta}>
-                      {pendingSession.items?.length ?? 0} items · {pendingSession.params?.source ?? 'mixed'}
+            {pendingSession && (() => {
+              const isCourse = pendingSession.params?.is_course === true
+              const bannerBorder = isCourse ? 'var(--blue)' : 'var(--gold)'
+              const btnBg        = isCourse ? 'var(--blue)' : 'var(--gold)'
+              const btnColor     = isCourse ? '#fff' : '#000'
+              const title        = isCourse
+                ? `Continue: ${pendingSession.params.course_name ?? 'Course'}`
+                : 'Session ready'
+              const meta         = isCourse
+                ? `${pendingSession.items?.length ?? 0} items · ${pendingSession.params.level ?? ''} ${pendingSession.params.type ?? ''}`
+                : `${pendingSession.items?.length ?? 0} items · ${pendingSession.params?.source ?? 'mixed'}`
+              return (
+                <div style={{ ...s.pendingBanner, borderColor: bannerBorder }}>
+                  <div style={s.pendingInfo}>
+                    <span style={s.pendingIcon}>{isCourse ? '🎓' : '📋'}</span>
+                    <div>
+                      <div style={s.pendingTitle}>{title}</div>
+                      <div style={s.pendingMeta}>{meta}</div>
                     </div>
                   </div>
+                  <button style={{ ...s.resumeBtn, background: btnBg, color: btnColor }} onClick={() => onStartSession(pendingSession.id)}>
+                    Resume →
+                  </button>
                 </div>
-                <button style={s.resumeBtn} onClick={() => onStartSession(pendingSession.id)}>
-                  Resume →
-                </button>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Stats ring */}
             <div style={s.statsCard}>
@@ -187,6 +201,8 @@ const s = {
   logoKanji: { fontSize: 28, color: 'var(--gold)', lineHeight: 1 },
   logoText:  { fontSize: 18, fontWeight: 600, letterSpacing: 2 },
   headerRight: { display: 'flex', alignItems: 'center', gap: 12 },
+  nav:     { display: 'flex', gap: 4 },
+  navBtn:  { background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer' },
   dueBadge: { background: 'var(--red-dim)', color: 'var(--red)', border: '1px solid var(--red)', padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 500 },
   main:   { maxWidth: 640, margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 20 },
   loading: { textAlign: 'center', color: 'var(--text2)', padding: 60 },
