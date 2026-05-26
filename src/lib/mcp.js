@@ -33,5 +33,9 @@ export const mcp = {
   getPendingSession: ()     => callTool('get_pending_session', {}),
   getNewItems:       (args) => callTool('get_new_items',       args ?? {}),
   getSession:        (sessionId) => callTool('get_session', { session_id: sessionId }),
-  getItems:          (args) => callGet('/items', args ?? {}),
+  getItems:               (args) => callGet('/items', args ?? {}),
+  createContentCourse:    (args) => callTool('create_content_course', args),
+  getSourceText:          (sourceTextId) => callTool('get_source_text', { id: sourceTextId }),
+  getItemsByTag:          (tag, jlptLevel) => callTool('get_items_by_tag', { tag, jlpt_level: jlptLevel ?? 'N5' }),
+  getRelatedWords:        (char) => callTool('get_related_words', { char }),
 }

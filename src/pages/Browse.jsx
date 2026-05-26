@@ -1,172 +1,313 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { mcp } from '../lib/mcp.js'
+import KanjiDetailPanel from '../components/KanjiDetailPanel.jsx'
 
-const LEVELS = ['N5', 'N4', 'N3', 'N2']
-const TYPES  = ['kanji', 'kotoba']
-
-const MASTERY_LABEL = ['New', 'Learning', 'Familiar', 'Good', 'Strong', 'Mastered']
-const MASTERY_COLOR = [
-  'var(--text3)',   // New
-  'var(--blue)',    // Learning
-  'var(--purple)',  // Familiar
-  'var(--gold)',    // Good
-  'var(--green)',   // Strong
-  'var(--green)',   // Mastered
+const N5_CLUSTERS = [
+  {
+    tag: 'numbers',
+    label: 'Numbers',
+    emoji: '🔢',
+    description: 'The counting foundation — master these and you can read prices, dates, floors, and phone numbers.',
+    pairs: [],
+  },
+  {
+    tag: 'time',
+    label: 'Time & Calendar',
+    emoji: '🕐',
+    description: "Time words appear in every schedule, every date, every deadline. 年月日時分 are the five you'll see daily.",
+    pairs: [['前','後'],['新','古'],['今','週']],
+  },
+  {
+    tag: 'directions',
+    label: 'Directions & Position',
+    emoji: '🧭',
+    description: 'Position pairs cut learning in half — 上/下, 左/右, 前/後, 中/外. Cardinal directions 東西南北 appear on every station exit.',
+    pairs: [['上','下'],['左','右'],['前','後'],['中','外'],['東','西'],['南','北']],
+  },
+  {
+    tag: 'nature',
+    label: 'Nature & Elements',
+    emoji: '🌿',
+    description: '山川水火木土 form the basis of hundreds of compound words.',
+    pairs: [['山','川'],['火','水'],['木','土']],
+  },
+  {
+    tag: 'body',
+    label: 'Body Parts',
+    emoji: '👁️',
+    description: '口手足目耳 — these appear in idioms, directions, and everyday expressions.',
+    pairs: [['手','足'],['目','耳']],
+  },
+  {
+    tag: 'people',
+    label: 'People & Family',
+    emoji: '👨‍👩‍👧',
+    description: '人男女子父母友 — the core people words. 子 appears in hundreds of compound words.',
+    pairs: [['男','女'],['父','母']],
+  },
+  {
+    tag: 'school',
+    label: 'School & Learning',
+    emoji: '📚',
+    description: "学校語書読聞 — you're literally using these kanji right now.",
+    pairs: [['書','読'],['聞','話']],
+  },
+  {
+    tag: 'actions',
+    label: 'Core Actions',
+    emoji: '⚡',
+    description: '行来見出入話 — the most common verbs. Master these and you can follow basic instructions anywhere.',
+    pairs: [['行','来'],['出','入'],['飲','食']],
+  },
 ]
 
-export default function Browse({ onStartSession, onNav, initLevel = 'N5', initType = 'kanji' }) {
-  const [level,    setLevel]    = useState(initLevel)
-  const [type,     setType]     = useState(initType)
-  const [orderBy,  setOrderBy]  = useState('priority')
-  const [page,     setPage]     = useState(1)
-  const [data,     setData]     = useState(null)   // { items, total, page, page_size }
-  const [loading,  setLoading]  = useState(false)
-  const [creating, setCreating] = useState(null)   // item.id being started
+const LEVELS = ['N5', 'N4', 'N3', 'N2']
 
-  const load = useCallback(async (lvl, tp, ord, pg) => {
-    setLoading(true)
-    try {
-      const result = await mcp.getItems({ level: lvl, type: tp, order_by: ord, page: pg, page_size: 50 })
-      setData(result)
-    } catch (e) {
-      console.error(e)
+export default function Browse() {
+  const navigate                    = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const [clusterData,   setClusterData]   = useState({})   // tag → { items, loading, error }
+  const [activeCluster, setActiveCluster] = useState(null)  // cluster config object
+  const [selectedKanji, setSelectedKanji] = useState(null)
+  const [relatedWords,  setRelatedWords]  = useState([])
+  const [loadingWords,  setLoadingWords]  = useState(false)
+  const [addedItems,    setAddedItems]    = useState({})     // itemId → sessionId
+  const [addingItem,    setAddingItem]    = useState(null)
+
+  // Fetch all N5 cluster data on mount
+  useEffect(() => {
+    for (const cluster of N5_CLUSTERS) {
+      setClusterData(prev => ({ ...prev, [cluster.tag]: { items: [], loading: true } }))
+      mcp.getItemsByTag(cluster.tag, 'N5').then(result => {
+        setClusterData(prev => ({ ...prev, [cluster.tag]: { items: result.items ?? [], loading: false } }))
+      }).catch(() => {
+        setClusterData(prev => ({ ...prev, [cluster.tag]: { items: [], loading: false, error: true } }))
+      })
     }
-    setLoading(false)
   }, [])
 
-  useEffect(() => { load(level, type, orderBy, page) }, [level, type, orderBy, page, load])
+  // Open cluster from URL param on mount
+  useEffect(() => {
+    const tag = searchParams.get('cluster')
+    if (tag) {
+      const found = N5_CLUSTERS.find(c => c.tag === tag)
+      if (found) setActiveCluster(found)
+    }
+  }, [])  // eslint-disable-line
 
-  function changeLevel(lvl) { setLevel(lvl); setPage(1) }
-  function changeType(tp)   { setType(tp);   setPage(1) }
-  function changeOrder(ord) { setOrderBy(ord); setPage(1) }
+  function openCluster(cluster) {
+    setActiveCluster(cluster)
+    setSelectedKanji(null)
+    setRelatedWords([])
+    setSearchParams({ cluster: cluster.tag })
+  }
 
-  async function learnItem(item) {
-    setCreating(item.id)
+  function closeCluster() {
+    setActiveCluster(null)
+    setSelectedKanji(null)
+    setRelatedWords([])
+    setSearchParams({})
+  }
+
+  async function selectKanji(item) {
+    setSelectedKanji(item)
+    setRelatedWords([])
+    setLoadingWords(true)
     try {
-      const result = await mcp.createSession({
-        level:  item.jlpt_level || undefined,
-        type:   item.item_type,
-        source: 'all',
-        count:  1,
-      })
-      if (result?.success) onStartSession(result.session_id)
-      else alert(result?.message ?? 'No session created')
+      const result = await mcp.getRelatedWords(item.value)
+      setRelatedWords(result.items ?? [])
+    } catch {}
+    setLoadingWords(false)
+  }
+
+  async function addToQueue(item) {
+    setAddingItem(item.id)
+    try {
+      const result = await mcp.createSession({ item_ids: [item.id] })
+      if (result?.success) {
+        setAddedItems(prev => ({ ...prev, [item.id]: result.session_id }))
+      } else {
+        alert(result?.message ?? 'Could not add to queue')
+      }
     } catch (e) {
       alert('Error: ' + e.message)
     }
-    setCreating(null)
+    setAddingItem(null)
   }
 
-  const totalPages = data ? Math.ceil(data.total / (data.page_size ?? 50)) : 1
-  const items      = data?.items ?? []
+  const clusterItems = activeCluster ? (clusterData[activeCluster.tag]?.items ?? []) : []
 
+  // ── Cluster detail view ────────────────────────────────────────────────────
+  if (activeCluster) {
+    const { pairs, emoji, label } = activeCluster
+    const pairBanner = pairs.length > 0
+      ? pairs.map(([a, b]) => `${a}/${b}`).join(' · ')
+      : null
+
+    return (
+      <div style={s.page}>
+        <header style={s.header}>
+          <div style={s.headerLeft}>
+            <button style={s.backBtnSmall} onClick={() => navigate(-1)}>← Back</button>
+            <span style={s.logoKanji} className="jp">漢</span>
+            <span style={s.logoText}>KanjiDen</span>
+          </div>
+          <nav style={s.nav}>
+            <button style={s.navBtn} onClick={() => navigate('/')}>Home</button>
+            <button style={s.navBtn} onClick={() => navigate('/levels')}>Levels</button>
+            <button style={{ ...s.navBtn, ...s.navActive }}>Browse</button>
+            <button style={s.navBtn} onClick={() => navigate('/progress')}>Progress</button>
+          </nav>
+        </header>
+
+        <main style={s.main}>
+          <div style={s.detailNav}>
+            <button style={s.backBtn} onClick={closeCluster}>← All clusters</button>
+          </div>
+
+          <div style={s.detailTitle}>
+            <span style={s.detailEmoji}>{emoji}</span>
+            <h1 style={s.detailLabel}>{label}</h1>
+            <span style={s.detailCount}>{clusterItems.length} kanji</span>
+          </div>
+
+          {pairBanner && (
+            <div style={s.pairBanner}>
+              💡 Learn these as pairs: {pairBanner}
+            </div>
+          )}
+
+          {/* Tile grid */}
+          <div style={s.tileGrid}>
+            {clusterItems.map(item => {
+              const mastered = item.mastery_level >= 3
+              const inProg   = item.in_progress && !mastered
+              const isSelected = selectedKanji?.id === item.id
+              return (
+                <button
+                  key={item.id}
+                  style={{
+                    ...s.tile,
+                    ...(isSelected ? s.tileSelected : {}),
+                    ...(mastered ? s.tileMastered : inProg ? s.tileInProg : {}),
+                  }}
+                  onClick={() => selectKanji(item)}
+                >
+                  <span className="jp" style={s.tileChar}>{item.value}</span>
+                  <span style={s.tileMeaning}>{item.core_meaning}</span>
+                  {item.in_progress && (
+                    <span style={{
+                      ...s.tileDot,
+                      background: ['#64748b','#38bdf8','#818cf8','#fbbf24','#34d399','#4ade80'][item.mastery_level ?? 0]
+                    }} />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Detail panel */}
+          {selectedKanji && (
+            <div style={s.detailPanelWrap}>
+              {loadingWords ? (
+                <div style={s.loadingWords}>Loading…</div>
+              ) : (
+                <KanjiDetailPanel
+                  item={selectedKanji}
+                  relatedWords={relatedWords}
+                  onAddToQueue={addToQueue}
+                  adding={addingItem === selectedKanji.id}
+                  added={!!addedItems[selectedKanji.id]}
+                />
+              )}
+              {addedItems[selectedKanji.id] && (
+                <button
+                  style={s.studyNowBtn}
+                  onClick={() => navigate('/session/' + addedItems[selectedKanji.id])}
+                >
+                  Study now →
+                </button>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
+    )
+  }
+
+  // ── Cluster grid view ──────────────────────────────────────────────────────
   return (
     <div style={s.page}>
       <header style={s.header}>
-        <div style={s.logo}>
+        <div style={s.headerLeft}>
           <span style={s.logoKanji} className="jp">漢</span>
           <span style={s.logoText}>KanjiDen</span>
         </div>
         <nav style={s.nav}>
-          <button style={s.navBtn} onClick={() => onNav('home')}>Home</button>
-          <button style={s.navBtn} onClick={() => onNav('levels')}>Levels</button>
+          <button style={s.navBtn} onClick={() => navigate('/')}>Home</button>
+          <button style={s.navBtn} onClick={() => navigate('/levels')}>Levels</button>
           <button style={{ ...s.navBtn, ...s.navActive }}>Browse</button>
+          <button style={s.navBtn} onClick={() => navigate('/progress')}>Progress</button>
         </nav>
       </header>
 
       <main style={s.main}>
-        {/* Selectors */}
-        <div style={s.selectors}>
-          <div style={s.tabGroup}>
-            {LEVELS.map(lvl => (
-              <button
-                key={lvl}
-                style={{ ...s.tab, ...(level === lvl ? s.tabActive : {}) }}
-                onClick={() => changeLevel(lvl)}
-              >{lvl}</button>
-            ))}
-          </div>
-          <div style={s.tabGroup}>
-            {TYPES.map(tp => (
-              <button
-                key={tp}
-                style={{ ...s.tab, ...(type === tp ? s.tabActive : {}) }}
-                onClick={() => changeType(tp)}
-              >{tp === 'kanji' ? 'Kanji' : 'Kotoba'}</button>
-            ))}
-          </div>
+        <div style={s.pageHead}>
+          <h1 style={s.pageTitle}>Explore Kanji by Theme</h1>
+          <div style={s.pageDesc}>Learn by topic, not by test level. Pick a cluster, explore the characters, study what you don't know.</div>
         </div>
 
-        {/* Table */}
-        <div style={s.tableWrap}>
-          <table style={s.table}>
-            <thead>
-              <tr>
-                <th style={s.th}>Character</th>
-                <th style={s.th}>Reading</th>
-                <th style={s.th}>Meaning</th>
-                <th style={s.th}>JLPT</th>
-                <th style={{ ...s.th, cursor: 'pointer', userSelect: 'none' }}
-                    onClick={() => changeOrder(type === 'kanji' ? 'stroke_count' : 'priority')}
-                    title={type === 'kanji' ? 'Sort by stroke count' : ''}>
-                  {type === 'kanji' ? `Strokes${orderBy === 'stroke_count' ? ' ↑' : ''}` : 'Level'}
-                </th>
-                <th style={s.th}>Mastery</th>
-                <th style={s.th}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && !items.length ? (
-                <tr><td colSpan={7} style={s.emptyCell}>Loading…</td></tr>
-              ) : !items.length ? (
-                <tr><td colSpan={7} style={s.emptyCell}>No items found.</td></tr>
-              ) : items.map(item => (
-                <tr key={item.id} style={s.row}>
-                  <td style={s.tdChar}>
-                    <span className="jp" style={s.char}>{item.value}</span>
-                  </td>
-                  <td style={s.td}>
-                    <span className="jp" style={s.reading}>{item.reading_hiragana ?? '—'}</span>
-                  </td>
-                  <td style={s.tdMeaning}>{item.core_meaning}</td>
-                  <td style={s.td}>
-                    {item.jlpt_level
-                      ? <span style={s.jlptBadge}>{item.jlpt_level}</span>
-                      : <span style={s.na}>—</span>}
-                  </td>
-                  <td style={s.td}>
-                    <span style={s.na}>{type === 'kanji' ? (item.stroke_count ?? '—') : (item.jlpt_level ?? '—')}</span>
-                  </td>
-                  <td style={s.td}>
-                    <span style={{ ...s.masteryPill, color: MASTERY_COLOR[item.mastery_level] }}>
-                      {MASTERY_LABEL[item.mastery_level]}
-                    </span>
-                  </td>
-                  <td style={s.tdAction}>
-                    <button
-                      style={s.learnBtn}
-                      disabled={!!creating}
-                      onClick={() => learnItem(item)}
-                    >
-                      {creating === item.id ? '…' : 'Learn'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Level tabs */}
+        <div style={s.levelTabs}>
+          {LEVELS.map(lvl => (
+            <button
+              key={lvl}
+              style={{ ...s.levelTab, ...(lvl === 'N5' ? s.levelTabActive : s.levelTabDim) }}
+              disabled={lvl !== 'N5'}
+            >
+              {lvl}{lvl !== 'N5' && <span style={s.comingSoon}> · soon</span>}
+            </button>
+          ))}
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div style={s.pagination}>
-            <button style={s.pageBtn} disabled={page <= 1 || loading} onClick={() => setPage(p => p - 1)}>← Prev</button>
-            <span style={s.pageInfo}>
-              {data?.total ? `${(page - 1) * 50 + 1}–${Math.min(page * 50, data.total)} of ${data.total}` : ''}
-            </span>
-            <button style={s.pageBtn} disabled={page >= totalPages || loading} onClick={() => setPage(p => p + 1)}>Next →</button>
-          </div>
-        )}
+        {/* Cluster cards grid */}
+        <div style={s.grid}>
+          {N5_CLUSTERS.map(cluster => {
+            const cd      = clusterData[cluster.tag]
+            const items   = cd?.items ?? []
+            const loading = cd?.loading ?? true
+            const mastered = items.filter(i => i.mastery_level >= 3).length
+            const inProg   = items.filter(i => i.in_progress && i.mastery_level < 3).length
+            const previewChars = items.slice(0, 12).map(i => i.value).join('')
+
+            return (
+              <div key={cluster.tag} className="dash-card" style={s.clusterCard}>
+                <div style={s.cardTop}>
+                  <span style={s.cardEmoji}>{cluster.emoji}</span>
+                  <div style={s.cardTitleBlock}>
+                    <div style={s.cardLabel}>{cluster.label}</div>
+                    {!loading && items.length > 0 && (
+                      <div style={s.cardProgress}>
+                        {mastered > 0 && <span style={s.progressMastered}>{mastered} mastered</span>}
+                        {inProg   > 0 && <span style={s.progressInProg}>{inProg} in progress</span>}
+                        {mastered === 0 && inProg === 0 && <span style={s.progressNew}>{items.length} new</span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="jp" style={s.previewChars}>{loading ? '…' : previewChars}</div>
+                <div style={s.cardDesc}>{cluster.description}</div>
+                <button className="dash-btn" style={s.exploreBtn} onClick={() => openCluster(cluster)}>
+                  Explore →
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        <div style={{ height: 40 }} />
       </main>
     </div>
   )
@@ -174,40 +315,67 @@ export default function Browse({ onStartSession, onNav, initLevel = 'N5', initTy
 
 const s = {
   page:   { minHeight: '100vh', background: 'var(--bg)' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', position: 'sticky', top: 0, zIndex: 10 },
-  logo:   { display: 'flex', alignItems: 'center', gap: 8 },
-  logoKanji: { fontSize: 28, color: 'var(--gold)', lineHeight: 1 },
-  logoText:  { fontSize: 18, fontWeight: 600, letterSpacing: 2 },
-  nav:       { display: 'flex', gap: 4 },
-  navBtn:    { background: 'transparent', border: '1px solid transparent', borderRadius: 8, padding: '6px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer' },
-  navActive: { border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)' },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 56, padding: '0 24px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 50 },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 10 },
+  logoKanji:  { fontSize: 26, color: 'var(--gold)', lineHeight: 1 },
+  logoText:   { fontSize: 16, fontWeight: 600, letterSpacing: 2.5 },
+  nav:        { display: 'flex', gap: 4 },
+  navBtn:     { background: 'transparent', border: '1px solid transparent', borderRadius: 8, padding: '6px 14px', fontSize: 13, color: 'var(--text2)', cursor: 'pointer' },
+  navActive:  { border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)' },
+  backBtnSmall: { background: 'none', border: 'none', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', padding: '4px 0', marginRight: 4 },
 
-  main:      { maxWidth: 860, margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 20 },
+  main: { maxWidth: 900, margin: '0 auto', padding: '28px 20px', display: 'flex', flexDirection: 'column', gap: 24 },
 
-  selectors: { display: 'flex', gap: 12, flexWrap: 'wrap' },
-  tabGroup:  { display: 'flex', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' },
-  tab:       { background: 'transparent', border: 'none', padding: '8px 16px', fontSize: 13, fontWeight: 500, color: 'var(--text2)', cursor: 'pointer' },
-  tabActive: { background: 'var(--bg3)', color: 'var(--text)', fontWeight: 600 },
+  pageHead:  { display: 'flex', flexDirection: 'column', gap: 6 },
+  pageTitle: { fontSize: 22, fontWeight: 700 },
+  pageDesc:  { fontSize: 14, color: 'var(--text2)' },
 
-  tableWrap: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' },
-  table:     { width: '100%', borderCollapse: 'collapse' },
-  th:        { padding: '12px 14px', fontSize: 11, fontWeight: 600, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' },
-  td:        { padding: '12px 14px', fontSize: 14, borderBottom: '1px solid var(--border)', color: 'var(--text)' },
-  tdChar:    { padding: '12px 14px', borderBottom: '1px solid var(--border)', width: 60 },
-  tdMeaning: { padding: '12px 14px', fontSize: 13, borderBottom: '1px solid var(--border)', color: 'var(--text2)', maxWidth: 220 },
-  tdAction:  { padding: '10px 14px', borderBottom: '1px solid var(--border)', textAlign: 'right' },
-  row:       { transition: 'background 0.1s' },
+  levelTabs: { display: 'flex', gap: 6 },
+  levelTab:     { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 16px', fontSize: 13, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer' },
+  levelTabActive: { background: 'var(--gold-dim)', borderColor: 'var(--gold)', color: 'var(--gold)' },
+  levelTabDim:    { opacity: 0.4, cursor: 'not-allowed' },
+  comingSoon:     { fontSize: 10, fontWeight: 400 },
 
-  char:      { fontSize: 24, color: 'var(--gold)' },
-  reading:   { fontSize: 14 },
-  jlptBadge: { background: 'var(--gold-dim)', color: 'var(--gold)', border: '1px solid rgba(212,168,67,0.3)', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700 },
-  na:        { color: 'var(--text3)', fontSize: 13 },
-  masteryPill: { fontSize: 12, fontWeight: 600 },
-  learnBtn:  { background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 500, color: 'var(--text)', cursor: 'pointer' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 },
 
-  emptyCell: { textAlign: 'center', padding: '40px', color: 'var(--text2)', fontSize: 14 },
+  clusterCard:  { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px', display: 'flex', flexDirection: 'column', gap: 10 },
+  cardTop:      { display: 'flex', alignItems: 'flex-start', gap: 10 },
+  cardEmoji:    { fontSize: 22, lineHeight: 1, flexShrink: 0, marginTop: 2 },
+  cardTitleBlock: { flex: 1, display: 'flex', flexDirection: 'column', gap: 4 },
+  cardLabel:    { fontSize: 14, fontWeight: 700, color: 'var(--text)' },
+  cardProgress: { display: 'flex', gap: 6, flexWrap: 'wrap' },
+  progressMastered: { fontSize: 11, color: 'var(--green)', fontWeight: 600 },
+  progressInProg:   { fontSize: 11, color: 'var(--blue)', fontWeight: 600 },
+  progressNew:      { fontSize: 11, color: 'var(--text3)' },
 
-  pagination: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 },
-  pageBtn:    { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 16px', fontSize: 13, color: 'var(--text)', cursor: 'pointer' },
-  pageInfo:   { color: 'var(--text2)', fontSize: 13 },
+  previewChars: { fontSize: 18, color: 'var(--gold)', letterSpacing: 2, lineHeight: 1.5 },
+  cardDesc:     { fontSize: 12, color: 'var(--text3)', lineHeight: 1.5, flex: 1 },
+  exploreBtn:   { background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', marginTop: 4 },
+
+  // Detail view
+  detailNav:   { display: 'flex', alignItems: 'center', gap: 8 },
+  backBtn:     { background: 'none', border: 'none', color: 'var(--text2)', fontSize: 13, cursor: 'pointer', padding: '4px 0' },
+  detailTitle: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  detailEmoji: { fontSize: 28 },
+  detailLabel: { fontSize: 22, fontWeight: 700, margin: 0 },
+  detailCount: { fontSize: 13, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '2px 10px' },
+
+  pairBanner: { fontSize: 13, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', lineHeight: 1.5 },
+
+  tileGrid: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  tile: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    width: 76, minHeight: 76, borderRadius: 10, border: '1px solid var(--border)',
+    background: 'var(--bg2)', cursor: 'pointer', position: 'relative', padding: '8px 4px', gap: 4,
+  },
+  tileSelected: { border: '2px solid var(--blue)', background: 'var(--blue-dim)' },
+  tileMastered: { border: '1px solid rgba(78,203,141,0.3)', background: 'rgba(78,203,141,0.06)' },
+  tileInProg:   { border: '1px solid rgba(91,141,238,0.3)' },
+  tileChar:     { fontSize: 24, color: 'var(--gold)', lineHeight: 1 },
+  tileMeaning:  { fontSize: 9, color: 'var(--text3)', textAlign: 'center', lineHeight: 1.2, maxWidth: 68 },
+  tileDot:      { position: 'absolute', top: 5, right: 5, width: 6, height: 6, borderRadius: '50%' },
+
+  detailPanelWrap: { display: 'flex', flexDirection: 'column', gap: 10 },
+  loadingWords:    { color: 'var(--text2)', fontSize: 13, padding: '16px 0' },
+  studyNowBtn:     { background: 'var(--gold)', color: '#000', border: 'none', borderRadius: 8, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
 }

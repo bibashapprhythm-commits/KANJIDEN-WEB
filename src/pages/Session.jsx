@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { mcp } from '../lib/mcp.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -172,7 +173,7 @@ function QuizCard({ item, sessionId, allItems, onAnswer, cardNum, total }) {
       correct_answer: correct,
       response_ms:    ms,
     })
-    onAnswer({ item, selected, correct, rating: r, correct: selected === correct })
+    onAnswer({ item, selected, rating: r, correct: selected === correct })
   }
 
   return (
@@ -318,32 +319,103 @@ function Results({ answers, onStudyAgain, onHome }) {
   )
 }
 
-// ── Main Session Page ─────────────────────────────────────────────────────────
-export default function Session({ sessionId, onBack }) {
-  const [phase, setPhase]     = useState(PHASES.LOADING)
-  const [session, setSession] = useState(null)
-  const [items, setItems]     = useState([])
-  const [readIdx, setReadIdx] = useState(0)
-  const [quizIdx, setQuizIdx] = useState(0)
-  const [answers, setAnswers] = useState([])
-  const completedRef          = useRef(false)
+// ── Course context header ─────────────────────────────────────────────────────
+function CourseContextHeader({ session }) {
+  if (!session?.course_title) return null
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 4, maxWidth: 560, width: '100%' }}>
+      <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.5, padding: '0 8px' }}>
+        {session.course_title}
+      </div>
+      {(session.course_total_phases ?? 1) > 1 && (
+        <div style={{ fontSize: 11, color: 'var(--text3)', opacity: 0.7, marginTop: 2 }}>
+          Phase {session.course_phase} of {session.course_total_phases}
+          {session.params?.phase_label ? ` — ${session.params.phase_label}` : ''}
+        </div>
+      )}
+    </div>
+  )
+}
 
-  useEffect(() => {
-    loadSession()
-  }, [sessionId])
+// ── Content course completion screen ─────────────────────────────────────────
+function ContentComplete({ session, goalContent, onHome, onGoToCourse }) {
+  const isLastPhase = (session.course_phase ?? 1) >= (session.course_total_phases ?? 1)
+
+  if (isLastPhase) {
+    return (
+      <div style={s.phase} className="phase-enter">
+        <div style={s.resultsHeader}>
+          <div style={{ fontSize: 36, color: 'var(--green)' }}>✓</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>Course complete!</div>
+          <div style={{ fontSize: 14, color: 'var(--text2)' }}>{session.course_title}</div>
+        </div>
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '24px 24px' }}>
+          <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 16 }}>
+            Can you read this now?
+          </div>
+          {goalContent ? (
+            <div style={{ fontSize: 20, lineHeight: 1.9, color: 'var(--text)' }} className="jp">
+              {goalContent}
+            </div>
+          ) : (
+            <div style={{ color: 'var(--text3)', fontSize: 14 }}>Goal text not available yet.</div>
+          )}
+        </div>
+        <div style={s.resultActions}>
+          <button style={s.startBtn} onClick={onGoToCourse}>Read the original →</button>
+          <button className="nav-btn-el" style={s.navBtn} onClick={onHome}>← Back to Home</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={s.phase} className="phase-enter">
+      <div style={s.resultsHeader}>
+        <div style={{ fontSize: 52, fontWeight: 700, color: 'var(--green)', lineHeight: 1 }}>✓</div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>Phase {session.course_phase} complete</div>
+        <div style={{ fontSize: 15, color: 'var(--text2)' }}>
+          Phase {(session.course_phase ?? 1) + 1} is now unlocked
+        </div>
+      </div>
+      <div style={s.resultActions}>
+        <button style={s.startBtn} onClick={onGoToCourse}>Go to course →</button>
+        <button className="nav-btn-el" style={s.navBtn} onClick={onHome}>← Back to Home</button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main Session Page ─────────────────────────────────────────────────────────
+export default function Session() {
+  const { id: sessionId } = useParams()
+  const navigate          = useNavigate()
+
+  const [phase,       setPhase]       = useState(PHASES.LOADING)
+  const [session,     setSession]     = useState(null)
+  const [items,       setItems]       = useState([])
+  const [readIdx,     setReadIdx]     = useState(0)
+  const [quizIdx,     setQuizIdx]     = useState(0)
+  const [answers,     setAnswers]     = useState([])
+  const [goalContent, setGoalContent] = useState(null)
+  const completedRef                  = useRef(false)
+
+  useEffect(() => { loadSession() }, [sessionId])
 
   async function loadSession() {
     setPhase(PHASES.LOADING)
+    setGoalContent(null)
+    completedRef.current = false
     try {
       const data = sessionId
         ? await mcp.getSession(sessionId)
         : await mcp.getPendingSession()
-      if (!data) { onBack(); return }
+      if (!data) { navigate('/'); return }
       setSession(data)
       setItems(data.items ?? [])
       setPhase(PHASES.READING)
     } catch {
-      onBack()
+      navigate('/')
     }
   }
 
@@ -361,6 +433,18 @@ export default function Session({ sessionId, onBack }) {
           session_id:    session.id,
           marks_percent: Math.round((correct / newAnswers.length) * 100),
         })
+
+        // Fetch goal content for last phase of content courses
+        if (session?.source_text_id) {
+          const isLastPhase = (session.course_phase ?? 1) >= (session.course_total_phases ?? 1)
+          if (isLastPhase) {
+            try {
+              const sourceText = await mcp.getSourceText(session.source_text_id)
+              setGoalContent(sourceText?.goal_content ?? null)
+            } catch {}
+          }
+        }
+
         setPhase(PHASES.RESULTS)
       }, 800)
     }
@@ -378,11 +462,13 @@ export default function Session({ sessionId, onBack }) {
     ? Math.round((quizIdx / items.length) * 100)
     : phase === PHASES.RESULTS ? 100 : 0
 
+  const isContentCourse = !!session?.source_text_id
+
   return (
     <div style={s.sessionPage}>
       {/* Top bar */}
       <div style={s.topBar}>
-        <button style={s.backBtn} onClick={onBack}>← Back</button>
+        <button style={s.backBtn} onClick={() => navigate('/')}>← Back</button>
         <div style={s.topBarTitle} className="jp">漢字Den</div>
         <div style={s.topBarMeta}>
           {phase === PHASES.QUIZ && (
@@ -392,12 +478,16 @@ export default function Session({ sessionId, onBack }) {
         </div>
       </div>
 
-      {/* Progress bar — visible during quiz and results */}
+      {/* Progress bar */}
       <div style={s.progressTrack}>
         <div style={{ ...s.progressFill, width: `${progress}%` }} />
       </div>
 
       <div style={s.sessionMain}>
+        {session?.course_title && (phase === PHASES.READING || phase === PHASES.QUIZ) && (
+          <CourseContextHeader session={session} />
+        )}
+
         {phase === PHASES.READING && items[readIdx] && (
           <ReadingCard
             key={readIdx}
@@ -422,7 +512,16 @@ export default function Session({ sessionId, onBack }) {
           />
         )}
 
-        {phase === PHASES.RESULTS && (
+        {phase === PHASES.RESULTS && isContentCourse && (
+          <ContentComplete
+            session={session}
+            goalContent={goalContent}
+            onGoToCourse={() => navigate('/courses/' + session.source_text_id)}
+            onHome={() => navigate('/')}
+          />
+        )}
+
+        {phase === PHASES.RESULTS && !isContentCourse && (
           <Results
             answers={answers}
             onStudyAgain={() => {
@@ -432,7 +531,7 @@ export default function Session({ sessionId, onBack }) {
               setQuizIdx(0)
               setAnswers([])
             }}
-            onHome={onBack}
+            onHome={() => navigate('/')}
           />
         )}
       </div>

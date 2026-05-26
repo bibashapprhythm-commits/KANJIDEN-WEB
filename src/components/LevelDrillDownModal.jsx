@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { mcp } from '../lib/mcp.js'
 
 const MASTERY_LABEL = ['New', 'Learning', 'Familiar', 'Stable', 'Strong', 'Mastered']
@@ -18,7 +19,8 @@ const ORDER_OPTIONS = [
 const SERVER_SORTS = new Set(['priority', 'stroke_count', 'frequency_rank'])
 const PAGE_SIZE = 50
 
-export default function LevelDrillDownModal({ level, initialTab = 'all', onClose, onNav, onStartSession }) {
+export default function LevelDrillDownModal({ level, initialTab = 'all', onClose }) {
+  const navigate = useNavigate()
   const [kanjiItems,  setKanjiItems]  = useState([])
   const [kotobaItems, setKotobaItems] = useState([])
   const [kanjiTotal,  setKanjiTotal]  = useState(0)
@@ -137,7 +139,7 @@ export default function LevelDrillDownModal({ level, initialTab = 'all', onClose
         source: 'all',
         count: 1,
       })
-      if (result?.success) onStartSession(result.session_id)
+      if (result?.success) navigate('/session/' + result.session_id)
       else alert(result?.message ?? 'No session created')
     } catch (e) {
       alert('Error: ' + e.message)
@@ -180,7 +182,7 @@ export default function LevelDrillDownModal({ level, initialTab = 'all', onClose
             <span style={drillCount}>{stats.total} total</span>
           </div>
           <div style={drillHeaderRight}>
-            <button className="dash-btn" style={drillBrowseBtn} onClick={() => { onClose?.(); onNav?.('browse') }}>Browse all</button>
+            <button className="dash-btn" style={drillBrowseBtn} onClick={() => { onClose?.(); navigate('/browse') }}>Browse all</button>
             <button className="dash-btn" style={drillCloseBtn} onClick={onClose}>✕</button>
           </div>
         </div>

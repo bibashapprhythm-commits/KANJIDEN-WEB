@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { mcp } from '../lib/mcp.js'
 import LevelDrillDownModal from '../components/LevelDrillDownModal.jsx'
 
 const LEVELS = ['N5', 'N4', 'N3', 'N2']
 
-export default function Levels({ onStartSession, onNav }) {
+export default function Levels() {
+  const navigate                    = useNavigate()
   const [data,       setData]       = useState({})
-  const [modal,      setModal]      = useState(null)   // { level, type }
-  const [drillDown,  setDrillDown]  = useState(null)   // { level, tab }
+  const [modal,      setModal]      = useState(null)
+  const [drillDown,  setDrillDown]  = useState(null)
   const [orderBy,    setOrderBy]    = useState('radical')
   const [creating,   setCreating]   = useState(false)
 
@@ -41,7 +43,7 @@ export default function Levels({ onStartSession, onNav }) {
       const result = await mcp.createCourse({ level: modal.level, type: modal.type, order_by: orderBy })
       if (result?.success) {
         setModal(null)
-        onStartSession(result.session_id)
+        navigate('/session/' + result.session_id)
       } else {
         alert(result?.message ?? 'Could not create course')
       }
@@ -59,9 +61,9 @@ export default function Levels({ onStartSession, onNav }) {
           <span style={s.logoText}>KanjiDen</span>
         </div>
         <nav style={s.nav}>
-          <button style={s.navBtn} onClick={() => onNav('home')}>Home</button>
+          <button style={s.navBtn} onClick={() => navigate('/')}>Home</button>
           <button style={{ ...s.navBtn, ...s.navActive }}>Levels</button>
-          <button style={s.navBtn} onClick={() => onNav('browse')}>Browse</button>
+          <button style={s.navBtn} onClick={() => navigate('/browse')}>Browse</button>
         </nav>
       </header>
 
@@ -88,8 +90,6 @@ export default function Levels({ onStartSession, onNav }) {
           level={drillDown.level}
           initialTab={drillDown.tab}
           onClose={() => setDrillDown(null)}
-          onNav={onNav}
-          onStartSession={onStartSession}
         />
       )}
 
