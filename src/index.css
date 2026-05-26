@@ -59,6 +59,25 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   background: var(--bg3) !important;
 }
 
+/* ── Loading skeleton ────────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+/* ── Dashboard interactive states ───────────────────────────────────────────── */
+.dash-card:hover {
+  border-color: var(--border2) !important;
+}
+.dash-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+.dash-btn:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.95);
+}
+
 /* ── Phase entrance animation ───────────────────────────────────────────────── */
 @keyframes phaseIn {
   from { opacity: 0; transform: translateY(8px); }

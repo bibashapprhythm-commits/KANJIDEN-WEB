@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import { mcp } from '../lib/mcp.js'
+import LevelDrillDownModal from '../components/LevelDrillDownModal.jsx'
 
 const LEVELS = ['N5', 'N4', 'N3', 'N2']
 
 export default function Levels({ onStartSession, onNav }) {
-  const [data,     setData]     = useState({})
-  const [modal,    setModal]    = useState(null)   // { level, type }
-  const [orderBy,  setOrderBy]  = useState('radical')
-  const [creating, setCreating] = useState(false)
+  const [data,       setData]       = useState({})
+  const [modal,      setModal]      = useState(null)   // { level, type }
+  const [drillDown,  setDrillDown]  = useState(null)   // { level, tab }
+  const [orderBy,    setOrderBy]    = useState('radical')
+  const [creating,   setCreating]   = useState(false)
 
   useEffect(() => {
     for (const level of LEVELS) {
@@ -67,17 +69,29 @@ export default function Levels({ onStartSession, onNav }) {
         <div style={s.pageTitle}>JLPT Levels</div>
         <div style={s.pageDesc}>Structured courses for each level and item type.</div>
 
-        <div style={s.cards}>
-          {LEVELS.map(level => (
-            <LevelCard
-              key={level}
-              level={level}
-              data={data}
-              onStart={(type) => { setOrderBy('radical'); setModal({ level, type }) }}
-            />
-          ))}
-        </div>
+      <div style={s.cards}>
+        {LEVELS.map(level => (
+          <LevelCard
+            key={level}
+            level={level}
+            data={data}
+            onStart={(type) => { setOrderBy('radical'); setModal({ level, type }) }}
+            onDrillDown={(tab) => setDrillDown({ level, tab })}
+          />
+        ))}
+      </div>
       </main>
+
+      {/* Drill-down modal */}
+      {drillDown && (
+        <LevelDrillDownModal
+          level={drillDown.level}
+          initialTab={drillDown.tab}
+          onClose={() => setDrillDown(null)}
+          onNav={onNav}
+          onStartSession={onStartSession}
+        />
+      )}
 
       {/* Order modal */}
       {modal && (
@@ -111,19 +125,21 @@ export default function Levels({ onStartSession, onNav }) {
   )
 }
 
-function LevelCard({ level, data, onStart }) {
+function LevelCard({ level, data, onStart, onDrillDown }) {
   return (
-    <div style={s.card}>
+    <div style={{ ...s.card, cursor: 'pointer' }} onClick={() => onDrillDown?.('all')} title={`View ${level} item details`}>
       <div style={s.cardHeader}>
-        <span style={s.levelBadge}>{level}</span>
+        <span style={s.levelBadge} onClick={e => { e.stopPropagation(); onDrillDown?.('all') }}>{level}</span>
       </div>
-      <TypeRow label="Kanji"  rowData={data[`${level}_kanji`]}  onStart={() => onStart('kanji')}  />
-      <TypeRow label="Kotoba" rowData={data[`${level}_kotoba`]} onStart={() => onStart('kotoba')} />
+      <TypeRow label="Kanji"  rowData={data[`${level}_kanji`]}  onStart={() => onStart('kanji')}
+        onLabelClick={(e) => { e?.stopPropagation(); onDrillDown?.('kanji') }} />
+      <TypeRow label="Kotoba" rowData={data[`${level}_kotoba`]} onStart={() => onStart('kotoba')}
+        onLabelClick={(e) => { e?.stopPropagation(); onDrillDown?.('kotoba') }} />
     </div>
   )
 }
 
-function TypeRow({ label, rowData, onStart }) {
+function TypeRow({ label, rowData, onStart, onLabelClick }) {
   const loading  = rowData?.loading  ?? true
   const mastered = rowData?.mastered ?? 0
   const total    = rowData?.total    ?? 0
@@ -132,7 +148,8 @@ function TypeRow({ label, rowData, onStart }) {
 
   return (
     <div style={s.typeRow}>
-      <div style={s.typeLabel}>{label}</div>
+      <div style={{ ...s.typeLabel, cursor: onLabelClick ? 'pointer' : 'default' }}
+        onClick={onLabelClick}>{label}</div>
       <div style={s.typeMiddle}>
         {loading ? (
           <div style={s.typeCount}>—</div>

@@ -43,7 +43,12 @@ export default function Browse({ onStartSession, onNav, initLevel = 'N5', initTy
   async function learnItem(item) {
     setCreating(item.id)
     try {
-      const result = await mcp.createSession({ item_ids: [item.id] })
+      const result = await mcp.createSession({
+        level:  item.jlpt_level || undefined,
+        type:   item.item_type,
+        source: 'all',
+        count:  1,
+      })
       if (result?.success) onStartSession(result.session_id)
       else alert(result?.message ?? 'No session created')
     } catch (e) {

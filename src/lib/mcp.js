@@ -31,6 +31,7 @@ export const mcp = {
   getWeakWords:      (args) => callTool('get_weak_words',      args ?? {}),
   getDueToday:       (args) => callTool('get_due_today',       args ?? {}),
   getPendingSession: ()     => callTool('get_pending_session', {}),
+  getNewItems:       (args) => callTool('get_new_items',       args ?? {}),
   getSession:        (sessionId) => callTool('get_session', { session_id: sessionId }),
   getItems:          (args) => callGet('/items', args ?? {}),
 }
